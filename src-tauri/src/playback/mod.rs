@@ -13,4 +13,4 @@ mod window;
 
 pub use engine::MpvEngine;
 pub use health::{RecoveryAction, StreamHealthMonitor};
-pub use window::VideoWindow;
+pub use window::{VideoWindow, pump_thread_messages};

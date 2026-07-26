@@ -205,7 +205,27 @@ fn playback_loop(app: AppHandle, wid: i64, config: PlaybackConfig, rx: Receiver<
             });
         }
 
-        std::thread::sleep(poll);
+        // Windows-Nachrichten des Videofensters verarbeiten und dabei warten.
+        // Das Fenster gehört diesem Thread, deshalb MUSS dieser Thread seine
+        // Nachrichten abholen – sonst blockiert der Hauptthread und die
+        // Oberfläche friert ein („Keine Rückmeldung").
+        let steps = 10;
+        let step = poll / steps;
+        for _ in 0..steps {
+            crate::playback::pump_thread_messages();
+            // Zwischendurch auf neue Commands prüfen, damit Stop/Schließen
+            // sofort greift und nicht bis zu 250 ms verzögert wird.
+            if let Ok(cmd) = rx.try_recv() {
+                let is_load = matches!(cmd, PlaybackCommand::Load { .. });
+                if handle_command(&mut engine, &video, &mut volume, &mut title,
+                                  &mut active, &mut monitor, cmd) {
+                    engine.dispose();
+                    return;
+                }
+                if is_load { last_track_count = -1; }
+            }
+            std::thread::sleep(step);
+        }
     }
 }
 

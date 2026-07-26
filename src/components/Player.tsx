@@ -169,7 +169,10 @@ export default function Player({ channel, onClose, onNext, onPrev, channels, act
   // VOD erkannt, sobald eine endliche Dauer bekannt ist (Live-Streams: keine).
   const dur = status?.duration ?? 0;
   const pos = status?.position ?? 0;
-  const isVod = dur > 0;
+  // VOD-Erkennung: Live-Streams melden über den Puffer oft eine kurze
+  // "Dauer" (wenige Minuten). Echte Filme/Episoden sind deutlich länger.
+  // Erst ab 5 Minuten zeigen wir die Fortschritts-/Spulleiste.
+  const isVod = dur > 300;
   const audioTracks = tracks.filter((tr) => tr.kind === "audio");
   const subtitleTracks = tracks.filter((tr) => tr.kind === "subtitle");
 

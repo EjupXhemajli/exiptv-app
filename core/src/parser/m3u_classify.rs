@@ -19,17 +19,40 @@ pub enum StreamKind {
 }
 
 /// Erkennt die Art eines Eintrags anhand der Stream-URL.
+///
+/// Arbeitet ohne Speicher-Allokation: Bei sehr großen Playlisten
+/// (mehrere hunderttausend Einträge) würde eine Kleinschreibungs-Kopie je
+/// Eintrag unnötig Speicher und Zeit kosten.
 pub fn classify(url: &str) -> StreamKind {
     // Auf den Pfad-Teil schauen (Query ignorieren).
-    let path = url.split('?').next().unwrap_or(url).to_ascii_lowercase();
-    if path.contains("/movie/") || path.contains("/vod/") {
+    let path = url.split('?').next().unwrap_or(url);
+    if contains_ignore_ascii_case(path, "/movie/") || contains_ignore_ascii_case(path, "/vod/") {
         StreamKind::Movie
-    } else if path.contains("/series/") {
+    } else if contains_ignore_ascii_case(path, "/series/") {
         StreamKind::Series
     } else {
         // Alles andere (inkl. /live/ und klassische TS-Streams) ist Live-TV.
         StreamKind::Live
     }
+}
+
+/// Teilstring-Suche ohne Beachtung der Groß-/Kleinschreibung, ohne Allokation.
+fn contains_ignore_ascii_case(haystack: &str, needle_lower: &str) -> bool {
+    let h = haystack.as_bytes();
+    let n = needle_lower.as_bytes();
+    if n.is_empty() || h.len() < n.len() {
+        return false;
+    }
+    for start in 0..=(h.len() - n.len()) {
+        if h[start..start + n.len()]
+            .iter()
+            .zip(n)
+            .all(|(a, b)| a.to_ascii_lowercase() == *b)
+        {
+            return true;
+        }
+    }
+    false
 }
 
 /// Zerlegt einen Serien-Episoden-Titel in (Serienname, Staffel, Episode).
@@ -120,6 +143,16 @@ mod tests {
         assert_eq!(classify("http://s/series/u/p/1.mp4"), StreamKind::Series);
         assert_eq!(classify("http://s/u/p/1.ts"), StreamKind::Live); // klassisch
         assert_eq!(classify("http://s/vod/u/p/1.mkv"), StreamKind::Movie);
+    }
+
+    #[test]
+    fn klassifizierung_ignoriert_grossschreibung() {
+        // Manche Server schreiben Pfade groß.
+        assert_eq!(classify("http://s/MOVIE/u/p/1.mkv"), StreamKind::Movie);
+        assert_eq!(classify("http://s/Series/u/p/1.mkv"), StreamKind::Series);
+        assert_eq!(classify("http://s/VOD/u/p/1.mkv"), StreamKind::Movie);
+        // Query darf nicht stören.
+        assert_eq!(classify("http://s/live/u/p/1.ts?token=movie"), StreamKind::Live);
     }
 
     #[test]

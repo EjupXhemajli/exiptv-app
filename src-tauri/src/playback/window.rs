@@ -10,9 +10,9 @@
 //! als Integer `0`.
 
 #[cfg(target_os = "windows")]
-pub use win::VideoWindow;
+pub use win::{VideoWindow, pump_thread_messages};
 #[cfg(not(target_os = "windows"))]
-pub use stub::VideoWindow;
+pub use stub::{VideoWindow, pump_thread_messages};
 
 #[cfg(target_os = "windows")]
 mod win {
@@ -135,6 +135,34 @@ mod win {
             unsafe { DestroyWindow(self.hwnd); }
         }
     }
+
+    /// Arbeitet alle anstehenden Windows-Nachrichten dieses Threads ab.
+    ///
+    /// WICHTIG: Ein Fenster gehört immer dem Thread, der es erzeugt hat.
+    /// Das Videofenster entsteht im Playback-Thread, also muss auch dieser
+    /// Thread dessen Nachrichten verarbeiten. Ohne diese Pumpe stauen sich
+    /// die Nachrichten (Zeichnen, Treffer-Tests, Grössenänderungen); der
+    /// Hauptthread wartet dann auf Antworten des Kindfensters und die
+    /// gesamte Oberfläche friert ein („Keine Rückmeldung").
+    ///
+    /// `PeekMessageW` mit `PM_REMOVE` blockiert nicht: Sind keine Nachrichten
+    /// da, kehrt es sofort zurück.
+    pub fn pump_thread_messages() {
+        use windows_sys::Win32::UI::WindowsAndMessaging::{
+            PeekMessageW, TranslateMessage, DispatchMessageW, MSG, PM_REMOVE,
+        };
+        unsafe {
+            let mut msg: MSG = std::mem::zeroed();
+            // Begrenzt, damit ein Nachrichtensturm die Schleife nicht blockiert.
+            let mut guard = 0;
+            while PeekMessageW(&mut msg, std::ptr::null_mut(), 0, 0, PM_REMOVE) != 0 {
+                TranslateMessage(&msg);
+                DispatchMessageW(&msg);
+                guard += 1;
+                if guard > 200 { break; }
+            }
+        }
+    }
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -150,4 +178,5 @@ mod stub {
         #[allow(dead_code)]
         pub fn parent(&self) -> isize { 0 }
     }
+    pub fn pump_thread_messages() {}
 }

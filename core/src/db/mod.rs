@@ -960,6 +960,55 @@ mod tests {
     }
 
     #[test]
+    fn viele_filme_und_serien_speichern() {
+        let mut db = Database::open_in_memory().unwrap();
+        let pid = db.insert_provider("P", ProviderKind::M3uUrl, "http://x", None, None).unwrap();
+
+        // 5.000 Filme.
+        let movies: Vec<NewMovie> = (0..5_000)
+            .map(|i| NewMovie {
+                name: format!("Film {i}"),
+                url: format!("http://s/movie/u/p/{i}.mkv"),
+                category: Some("Filme".into()),
+                ..Default::default()
+            })
+            .collect();
+        db.replace_movies(pid, &movies).unwrap();
+        assert_eq!(db.count_movies(pid).unwrap(), 5_000);
+
+        // 200 Serien mit je 2 Staffeln à 10 Episoden = 4.000 Episoden.
+        let series: Vec<NewSeriesFull> = (0..200)
+            .map(|s| NewSeriesFull {
+                name: format!("Serie {s}"),
+                seasons: (1..=2)
+                    .map(|st| NewSeason {
+                        number: st,
+                        name: None,
+                        episodes: (1..=10)
+                            .map(|e| NewEpisode {
+                                number: e,
+                                name: Some(format!("Folge {e}")),
+                                url: format!("http://s/series/u/p/{s}_{st}_{e}.mkv"),
+                                ..Default::default()
+                            })
+                            .collect(),
+                    })
+                    .collect(),
+                ..Default::default()
+            })
+            .collect();
+        db.replace_series(pid, &series).unwrap();
+        assert_eq!(db.count_series(pid).unwrap(), 200);
+
+        // Stichprobe: Staffeln und Episoden der ersten Serie vorhanden.
+        let liste = db.list_series(pid, None, 5, 0).unwrap();
+        let seasons = db.list_seasons(liste[0].id).unwrap();
+        assert_eq!(seasons.len(), 2);
+        let eps = db.list_episodes(seasons[0].id).unwrap();
+        assert_eq!(eps.len(), 10);
+    }
+
+    #[test]
     fn favoriten_und_verlauf() {
         let mut db = Database::open_in_memory().unwrap();
         let pid = db.insert_provider("P", ProviderKind::M3uFile, "/tmp/a.m3u", None, None).unwrap();

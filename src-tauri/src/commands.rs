@@ -142,20 +142,24 @@ async fn import_bytes(
         .to_string();
     let total_bytes = bytes.len();
 
-    // Parsen + Speichern sind CPU-/IO-lastig → nicht auf dem UI-Thread.
+    // Parsen + Aufteilen sind CPU-lastig → nicht auf dem UI-Thread.
+    // Die Playlist wird dabei in Live-TV, Filme und Serien getrennt
+    // (erkannt am URL-Pfad /live/, /movie/, /series/).
     let app2 = app.clone();
     let result = tauri::async_runtime::spawn_blocking(move || {
         let parsed = m3u::parse_bytes(&bytes, base_url.as_deref());
         emit_progress(&app2, provider_id, "speichern", parsed.entries.len());
-        (parsed.entries, parsed.report)
+        let total = parsed.entries.len();
+        let split = crate::m3u_split::split_entries(parsed.entries);
+        (split, parsed.report, total)
     })
     .await
     .map_err(|e| format!("Interner Fehler bei der Verarbeitung: {e}"))?;
 
-    let (entries, mut report) = result;
+    let (split, mut report, total_entries) = result;
 
-    // Aussagekräftige Diagnose, wenn keine Kanäle erkannt wurden.
-    if entries.is_empty() {
+    // Aussagekräftige Diagnose, wenn gar nichts erkannt wurde.
+    if total_entries == 0 {
         let hint = if total_bytes == 0 {
             "Der Server hat eine leere Antwort geschickt. Das deutet auf einen \
              abgelaufenen Zugang, einen offline stehenden Server oder eine \
@@ -175,16 +179,33 @@ async fn import_bytes(
         ));
     }
 
+    let live_count = split.live.len();
+    let movie_count = split.movies.len();
+    let series_count = split.series.len();
+
     {
         let mut db = state.db.lock().map_err(lock_err)?;
-        db.replace_channels_staged(provider_id, &entries, &report)
-            .map_err(user_err)?;
+        crate::m3u_split::store_split(&mut db, provider_id, split, &report)?;
     }
-    report.channels_parsed = entries.len();
-    emit_progress(app, provider_id, "fertig", entries.len());
+
+    report.channels_parsed = live_count;
+    report.movies_parsed = movie_count;
+    report.series_parsed = series_count;
+    // Ehrlicher Hinweis, wenn die Playlist nur Live-TV enthält.
+    if live_count > 0 && movie_count == 0 && series_count == 0 {
+        report.warnings.push(
+            "Diese Playlist enthält nur Live-Sender – keine Filme oder Serien. \
+             Das ist eine Einschränkung des Anbieters."
+                .to_string(),
+        );
+    }
+
+    emit_progress(app, provider_id, "fertig", live_count);
     tracing::info!(
         provider_id,
-        kanaele = entries.len(),
+        kanaele = live_count,
+        filme = movie_count,
+        serien = series_count,
         uebersprungen = report.channels_skipped,
         "Playlist-Import abgeschlossen"
     );
