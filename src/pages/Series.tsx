@@ -116,7 +116,7 @@ export default function Series() {
         {/* Kategorienliste links (ziehbare Breite) – wie bei Live-TV */}
         <aside
           className="card"
-          style={{ width: catCol.width, flexShrink: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: 2 }}
+          style={{ width: catCol.width, flexShrink: 0, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: 2, padding: 6 }}
         >
           <button
             className={`group-btn ${category === null ? "active" : ""}`}

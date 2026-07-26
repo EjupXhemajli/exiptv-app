@@ -126,7 +126,7 @@ export default function LiveTV() {
 
       <div className="row" style={{ alignItems: "stretch", gap: 0, flex: 1, minHeight: 0 }}>
         {/* Gruppenliste (ziehbare Breite) */}
-        <aside className="card" style={{ width: groupCol.width, flexShrink: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: 2 }}>
+        <aside className="card" style={{ width: groupCol.width, flexShrink: 0, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: 2, padding: 6 }}>
           <GroupButton active={groupId === null} onClick={() => setGroupId(null)} label={t("live.allChannels")} />
           {groups.map((g) => (
             <GroupButton key={g.id} active={groupId === g.id} onClick={() => setGroupId(g.id)} label={g.name} />
@@ -230,12 +230,9 @@ export default function LiveTV() {
 function GroupButton({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) {
   return (
     <button
+      className={`group-btn ${active ? "active" : ""}`}
       onClick={onClick}
-      style={{
-        textAlign: "left",
-        background: active ? "linear-gradient(120deg, rgba(139,92,246,0.18), rgba(41,194,246,0.10))" : "transparent",
-        borderColor: active ? "rgba(139,92,246,0.3)" : "transparent",
-      }}
+      title={label}
     >
       {label}
     </button>
