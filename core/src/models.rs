@@ -226,3 +226,51 @@ pub struct HistoryEntry {
     pub logo_url: Option<String>,
     pub watched_at: i64,
 }
+
+/// Sortierung für Filme und Serien.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum VodSort {
+    /// Alphabetisch A–Z (Standard).
+    #[default]
+    NameAsc,
+    /// Alphabetisch Z–A.
+    NameDesc,
+    /// Erscheinungsjahr, neueste zuerst.
+    YearDesc,
+    /// Erscheinungsjahr, älteste zuerst.
+    YearAsc,
+    /// Zuletzt zur Liste hinzugefügt (Import-Zeitpunkt).
+    RecentlyAdded,
+    /// Beste Bewertung zuerst.
+    RatingDesc,
+}
+
+impl VodSort {
+    /// Wandelt einen Bezeichner aus der Oberfläche in die Sortierung.
+    pub fn parse(s: &str) -> Self {
+        match s {
+            "name_desc" => Self::NameDesc,
+            "year_desc" => Self::YearDesc,
+            "year_asc" => Self::YearAsc,
+            "recently_added" => Self::RecentlyAdded,
+            "rating_desc" => Self::RatingDesc,
+            _ => Self::NameAsc,
+        }
+    }
+
+    /// SQL-Fragment für ORDER BY (ohne das Schlüsselwort selbst).
+    ///
+    /// Bei Jahr und Bewertung werden fehlende Werte ans Ende sortiert,
+    /// damit Einträge ohne Angabe die Liste nicht anführen.
+    pub fn order_sql(self) -> &'static str {
+        match self {
+            Self::NameAsc => "name COLLATE NOCASE ASC",
+            Self::NameDesc => "name COLLATE NOCASE DESC",
+            Self::YearDesc => "year IS NULL, year DESC, name COLLATE NOCASE",
+            Self::YearAsc => "year IS NULL, year ASC, name COLLATE NOCASE",
+            Self::RecentlyAdded => "added_at DESC, id DESC",
+            Self::RatingDesc => "rating IS NULL, rating DESC, name COLLATE NOCASE",
+        }
+    }
+}

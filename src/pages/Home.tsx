@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { backend } from "../lib/backend";
 import EmptyState from "../components/EmptyState";
+import NewsSlideshow from "../components/NewsSlideshow";
 import type { Provider } from "../lib/types";
 
 function greetingKey(): string {
@@ -49,10 +50,15 @@ export default function Home() {
       )}
 
       {providers !== null && providers.length > 0 && (
-        <section className="card">
-          <h2>{t("home.recentChannels")}</h2>
-          <p className="dim" style={{ marginTop: 8 }}>{t("empty.history")}</p>
-        </section>
+        <div className="home-layout">
+          {/* Nachrichten-Slideshow (Politik & Sport) */}
+          <NewsSlideshow />
+
+          <section className="card">
+            <h2>{t("home.recentChannels")}</h2>
+            <p className="dim" style={{ marginTop: 8 }}>{t("empty.history")}</p>
+          </section>
+        </div>
       )}
     </>
   );

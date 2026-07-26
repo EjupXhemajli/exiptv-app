@@ -57,14 +57,27 @@ export default function Sidebar() {
           </li>
         ))}
       </ul>
-      <button
-        className="collapse-btn"
-        onClick={toggle}
-        aria-label={collapsed ? t("nav.expand") : t("nav.collapse")}
-        title={collapsed ? t("nav.expand") : t("nav.collapse")}
-      >
-        <IconChevron open={!collapsed} />
-      </button>
+      <div className="sidebar-foot">
+        <button
+          className="quit-btn"
+          onClick={() => {
+            if (window.confirm(t("nav.quitConfirm"))) void backend.quitApp();
+          }}
+          aria-label={t("nav.quit")}
+          title={t("nav.quit")}
+        >
+          <span aria-hidden="true">⏻</span>
+          {!collapsed && <span>{t("nav.quit")}</span>}
+        </button>
+        <button
+          className="collapse-btn"
+          onClick={toggle}
+          aria-label={collapsed ? t("nav.expand") : t("nav.collapse")}
+          title={collapsed ? t("nav.expand") : t("nav.collapse")}
+        >
+          <IconChevron open={!collapsed} />
+        </button>
+      </div>
     </nav>
   );
 }

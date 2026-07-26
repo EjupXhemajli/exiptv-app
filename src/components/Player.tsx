@@ -128,21 +128,49 @@ export default function Player({ channel, onClose, onNext, onPrev, channels, act
   }, [showChannelList, activeIndex]);
 
   // Vollbild des gesamten Fensters umschalten.
-  const toggleFullscreen = useCallback(async () => {
-    if (!isTauri) return;
+  // Im Vollbild werden Titel- und Steuerleiste ausgeblendet, damit nur noch
+  // das Bild zu sehen ist. Escape kehrt zurück (schließt NICHT die Wiedergabe).
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  const setFullscreen = useCallback(async (on: boolean) => {
+    if (!isTauri) { setIsFullscreen(on); return; }
     try {
       const { getCurrentWindow } = await import("@tauri-apps/api/window");
-      const w = getCurrentWindow();
-      const isFs = await w.isFullscreen();
-      await w.setFullscreen(!isFs);
-    } catch { /* ignorieren */ }
+      await getCurrentWindow().setFullscreen(on);
+      setIsFullscreen(on);
+    } catch {
+      setIsFullscreen(on);
+    }
+  }, []);
+
+  const toggleFullscreen = useCallback(async () => {
+    await setFullscreen(!isFullscreen);
+  }, [isFullscreen, setFullscreen]);
+
+  // Beim Verlassen der Wiedergabe immer den Vollbildmodus beenden.
+  useEffect(() => {
+    return () => {
+      if (isTauri) {
+        void (async () => {
+          try {
+            const { getCurrentWindow } = await import("@tauri-apps/api/window");
+            await getCurrentWindow().setFullscreen(false);
+          } catch { /* egal */ }
+        })();
+      }
+    };
   }, []);
 
   // Tastatursteuerung.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       switch (e.key) {
-        case "Escape": void close(); break;
+        case "Escape":
+          // Im Vollbild: zurück zur normalen Ansicht (Steuerung wieder da),
+          // damit Sender/Film gewechselt werden können.
+          if (isFullscreen) { void setFullscreen(false); }
+          else { void close(); }
+          break;
         case " ": e.preventDefault(); void backend.playbackTogglePause(); break;
         case "ArrowUp": setVol(Math.min(150, volume + 5)); break;
         case "ArrowDown": setVol(Math.max(0, volume - 5)); break;
@@ -157,7 +185,7 @@ export default function Player({ channel, onClose, onNext, onPrev, channels, act
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [volume, close, onPrev, onNext, toggleFullscreen]);
+  }, [volume, close, onPrev, onNext, toggleFullscreen, isFullscreen, setFullscreen]);
 
   const setVol = (v: number) => { setVolume(v); void backend.playbackSetVolume(v); };
 
@@ -177,7 +205,7 @@ export default function Player({ channel, onClose, onNext, onPrev, channels, act
   const subtitleTracks = tracks.filter((tr) => tr.kind === "subtitle");
 
   return (
-    <div className="player-overlay" onMouseMove={wakeControls}>
+    <div className={`player-overlay ${isFullscreen ? "is-fullscreen" : ""}`} onMouseMove={wakeControls}>
       {/* OBEN: Titelleiste – liegt außerhalb des Videofensters, immer klickbar */}
       <div className="player-topbar">
         <button className="icon-btn" onClick={() => void close()} aria-label={t("player.close")} title={t("player.close")}>
@@ -220,6 +248,11 @@ export default function Player({ channel, onClose, onNext, onPrev, channels, act
         ref={surfaceRef}
         onDoubleClick={() => void toggleFullscreen()}
       >
+        {/* Kurzer Hinweis nach dem Wechsel in den Vollbildmodus */}
+        {isFullscreen && (
+          <div className="fs-hint" key={`fs-${channel.id}`}>{t("player.fullscreenHint")}</div>
+        )}
+
         {/* Hotspot OBEN LINKS: nur wenn die Maus hier hinfährt, öffnet sich
             der Sender-Umschalter. So bleibt er nicht dauerhaft offen. */}
         {hasChannelList && !showChannelList && (

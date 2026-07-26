@@ -12,7 +12,9 @@
     "providers": "Anbieter",
     "settings": "Einstellungen",
     "collapse": "Seitenleiste einklappen",
-    "expand": "Seitenleiste ausklappen"
+    "expand": "Seitenleiste ausklappen",
+    "quit": "Beenden",
+    "quitConfirm": "EXIPTV wirklich beenden?"
   },
   "home": {
     "greetingMorning": "Guten Morgen",
@@ -202,7 +204,8 @@
     "track": "Spur",
     "aspect": "Bildformat",
     "fullscreen": "Vollbild",
-    "channelList": "Sender"
+    "channelList": "Sender",
+    "fullscreenHint": "Escape drücken, um zur Steuerung zurückzukehren"
   },
   "movies": {
     "emptyTitle": "Noch keine Filme",
@@ -210,7 +213,14 @@
     "director": "Regie",
     "cast": "Besetzung",
     "play": "Abspielen",
-    "count": "{{count}} Filme"
+    "count": "{{count}} Filme",
+    "sortBy": "Sortieren nach",
+    "sortNameAsc": "A – Z",
+    "sortNameDesc": "Z – A",
+    "sortYearDesc": "Jahr (neueste zuerst)",
+    "sortYearAsc": "Jahr (älteste zuerst)",
+    "sortRecent": "Zuletzt hinzugefügt",
+    "sortRating": "Beste Bewertung"
   },
   "series": {
     "emptyTitle": "Noch keine Serien",
@@ -231,5 +241,11 @@
     "emptyText": "Zuletzt angesehene Sender erscheinen hier.",
     "clear": "Verlauf löschen",
     "clearConfirm": "Gesamten Wiedergabeverlauf löschen?"
+  },
+  "news": {
+    "unavailable": "Nachrichten sind derzeit nicht verfügbar.",
+    "prev": "Vorherige Meldung",
+    "next": "Nächste Meldung",
+    "goTo": "Zu Meldung {{n}}"
   }
 }

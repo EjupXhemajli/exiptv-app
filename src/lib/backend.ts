@@ -8,7 +8,7 @@
  * Der Mock persistiert nichts und ist klar als solcher gekennzeichnet.
  */
 import type {
-  Channel, ChannelGroup, Diagnostics, Episode, HistoryEntry, ImportReport, Movie, MpvSetup,
+  Channel, ChannelGroup, Diagnostics, Episode, HistoryEntry, ImportReport, Movie, MpvSetup, NewsItem,
   PlaybackStatus, Provider, ProviderKind, Season, Series,
 } from "./types";
 
@@ -62,9 +62,9 @@ interface Backend {
 
   // VOD
   movieCategories(providerId: number): Promise<string[]>;
-  listMovies(providerId: number, category: string | null, limit: number, offset: number): Promise<Movie[]>;
+  listMovies(providerId: number, category: string | null, limit: number, offset: number, sort?: string): Promise<Movie[]>;
   seriesCategories(providerId: number): Promise<string[]>;
-  listSeries(providerId: number, category: string | null, limit: number, offset: number): Promise<Series[]>;
+  listSeries(providerId: number, category: string | null, limit: number, offset: number, sort?: string): Promise<Series[]>;
   listSeasons(seriesId: number): Promise<Season[]>;
   listEpisodes(seasonId: number): Promise<Episode[]>;
   countMovies(providerId: number): Promise<number>;
@@ -84,6 +84,8 @@ interface Backend {
   readLog(): Promise<string>;
   clearImageCache(): Promise<void>;
   cacheImage(url: string): Promise<string>;
+  quitApp(): Promise<void>;
+  fetchNews(perFeed?: number): Promise<NewsItem[]>;
 }
 
 function tauriBackend(): Backend {
@@ -153,9 +155,9 @@ function tauriBackend(): Backend {
     },
 
     movieCategories: (providerId) => inv("movie_categories", { providerId }),
-    listMovies: (providerId, category, limit, offset) => inv("list_movies", { providerId, category, limit, offset }),
+    listMovies: (providerId, category, limit, offset, sort) => inv("list_movies", { providerId, category, limit, offset, sort }),
     seriesCategories: (providerId) => inv("series_categories", { providerId }),
-    listSeries: (providerId, category, limit, offset) => inv("list_series", { providerId, category, limit, offset }),
+    listSeries: (providerId, category, limit, offset, sort) => inv("list_series", { providerId, category, limit, offset, sort }),
     listSeasons: (seriesId) => inv("list_seasons", { seriesId }),
     listEpisodes: (seasonId) => inv("list_episodes", { seasonId }),
     countMovies: (providerId) => inv("count_movies", { providerId }),
@@ -179,6 +181,8 @@ function tauriBackend(): Backend {
       const { convertFileSrc } = await import("@tauri-apps/api/core");
       return convertFileSrc(path);
     },
+    quitApp: () => inv("quit_app"),
+    fetchNews: (perFeed) => inv("fetch_news", { perFeed }),
   };
 }
 
@@ -349,6 +353,8 @@ function mockBackend(): Backend {
     readLog: async () => "Mock-Log: keine Einträge im Browser-Modus.",
     clearImageCache: async () => {},
     cacheImage: async (url) => url,
+    quitApp: async () => { window.close(); },
+    fetchNews: async () => [],
   };
 }
 

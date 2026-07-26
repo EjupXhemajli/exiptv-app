@@ -12,7 +12,7 @@ pub mod migrations;
 use crate::error::{CoreError, Result};
 use crate::models::{
     Channel, ChannelGroup, ChannelSort, Episode, HistoryEntry, ImportReport, Movie, Provider,
-    ProviderKind, Season, Series,
+    ProviderKind, Season, Series, VodSort,
 };
 use crate::parser::m3u::M3uEntry;
 use rusqlite::{params, Connection, OptionalExtension};
@@ -366,15 +366,20 @@ impl Database {
         category: Option<&str>,
         limit: i64,
         offset: i64,
+        sort: VodSort,
     ) -> Result<Vec<Movie>> {
-        let mut stmt = self.conn.prepare(
+        // Die Sortierung stammt aus einem festen Enum (kein Nutzertext),
+        // daher ist das Einsetzen ins SQL unbedenklich.
+        let sql = format!(
             "SELECT id, provider_id, name, url, category, poster_url, backdrop_url, plot,
                     year, genre, duration_s, rating, age_rating, director, [cast], trailer_url
              FROM movies
              WHERE provider_id = ?1 AND (?2 IS NULL OR category = ?2)
-             ORDER BY name COLLATE NOCASE
+             ORDER BY {}
              LIMIT ?3 OFFSET ?4",
-        )?;
+            sort.order_sql()
+        );
+        let mut stmt = self.conn.prepare(&sql)?;
         let rows = stmt.query_map(params![provider_id, category, limit, offset], row_to_movie)?;
         Ok(rows.collect::<std::result::Result<_, _>>()?)
     }
@@ -407,15 +412,18 @@ impl Database {
         category: Option<&str>,
         limit: i64,
         offset: i64,
+        sort: VodSort,
     ) -> Result<Vec<Series>> {
-        let mut stmt = self.conn.prepare(
+        let sql = format!(
             "SELECT id, provider_id, external_id, name, category, poster_url, backdrop_url, plot,
                     year, genre, rating, age_rating
              FROM series
              WHERE provider_id = ?1 AND (?2 IS NULL OR category = ?2)
-             ORDER BY name COLLATE NOCASE
+             ORDER BY {}
              LIMIT ?3 OFFSET ?4",
-        )?;
+            sort.order_sql()
+        );
+        let mut stmt = self.conn.prepare(&sql)?;
         let rows = stmt.query_map(params![provider_id, category, limit, offset], row_to_series)?;
         Ok(rows.collect::<std::result::Result<_, _>>()?)
     }
@@ -960,6 +968,38 @@ mod tests {
     }
 
     #[test]
+    fn film_sortierung() {
+        let mut db = Database::open_in_memory().unwrap();
+        let pid = db.insert_provider("P", ProviderKind::M3uUrl, "http://x", None, None).unwrap();
+        let movies = vec![
+            NewMovie { name: "Zebra".into(), url: "u1".into(), year: Some(1999), rating: Some(5.0), ..Default::default() },
+            NewMovie { name: "Alpha".into(), url: "u2".into(), year: Some(2024), rating: Some(9.0), ..Default::default() },
+            NewMovie { name: "Mitte".into(), url: "u3".into(), year: None, rating: None, ..Default::default() },
+        ];
+        db.replace_movies(pid, &movies).unwrap();
+
+        // A–Z
+        let asc = db.list_movies(pid, None, 10, 0, VodSort::NameAsc).unwrap();
+        assert_eq!(asc[0].name, "Alpha");
+        assert_eq!(asc[2].name, "Zebra");
+
+        // Z–A
+        let desc = db.list_movies(pid, None, 10, 0, VodSort::NameDesc).unwrap();
+        assert_eq!(desc[0].name, "Zebra");
+
+        // Jahr absteigend: neueste zuerst, Einträge ohne Jahr ans Ende.
+        let year_desc = db.list_movies(pid, None, 10, 0, VodSort::YearDesc).unwrap();
+        assert_eq!(year_desc[0].name, "Alpha");   // 2024
+        assert_eq!(year_desc[1].name, "Zebra");   // 1999
+        assert_eq!(year_desc[2].name, "Mitte");   // ohne Jahr
+
+        // Bewertung absteigend, ohne Bewertung ans Ende.
+        let rating = db.list_movies(pid, None, 10, 0, VodSort::RatingDesc).unwrap();
+        assert_eq!(rating[0].name, "Alpha");
+        assert_eq!(rating[2].name, "Mitte");
+    }
+
+    #[test]
     fn viele_filme_und_serien_speichern() {
         let mut db = Database::open_in_memory().unwrap();
         let pid = db.insert_provider("P", ProviderKind::M3uUrl, "http://x", None, None).unwrap();
@@ -1001,7 +1041,7 @@ mod tests {
         assert_eq!(db.count_series(pid).unwrap(), 200);
 
         // Stichprobe: Staffeln und Episoden der ersten Serie vorhanden.
-        let liste = db.list_series(pid, None, 5, 0).unwrap();
+        let liste = db.list_series(pid, None, 5, 0, VodSort::default()).unwrap();
         let seasons = db.list_seasons(liste[0].id).unwrap();
         assert_eq!(seasons.len(), 2);
         let eps = db.list_episodes(seasons[0].id).unwrap();
@@ -1064,12 +1104,12 @@ mod tests {
             rusqlite::params![season_id],
         ).unwrap();
 
-        let movies = db.list_movies(pid, None, 50, 0).unwrap();
+        let movies = db.list_movies(pid, None, 50, 0, VodSort::default()).unwrap();
         assert_eq!(movies.len(), 1);
         assert_eq!(movies[0].year, Some(2024));
         assert_eq!(db.movie_categories(pid).unwrap(), vec!["Action"]);
 
-        let series = db.list_series(pid, None, 50, 0).unwrap();
+        let series = db.list_series(pid, None, 50, 0, VodSort::default()).unwrap();
         assert_eq!(series.len(), 1);
         let seasons = db.list_seasons(series[0].id).unwrap();
         assert_eq!(seasons.len(), 1);

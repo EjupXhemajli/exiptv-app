@@ -129,3 +129,31 @@ M3U-Weg und **teilt die Playlist in Live-TV, Filme und Serien auf**
 `/series/` und zerlegt Serien-Episodentitel in Name/Staffel/Episode;
 `src-tauri/m3u_split.rs` gruppiert und speichert getrennt). So funktionieren
 Filme/Serien auch ohne nutzbare Xtream-API.
+
+## Ergänzungen nach der ersten lauffähigen Fassung
+
+**Sortierung für Filme und Serien** (`VodSort` im Core): A–Z, Z–A, Jahr auf-/
+absteigend, zuletzt hinzugefügt, beste Bewertung. Läuft in der Datenbank
+(ORDER BY), Einträge ohne Jahr/Bewertung werden ans Ende sortiert.
+
+**Vollbild** – im Vollbild werden Titel- und Steuerleiste ausgeblendet; Escape
+kehrt zur normalen Ansicht zurück (statt die Wiedergabe zu beenden), sodass
+der Sender gewechselt werden kann. Beim Verlassen der Wiedergabe wird der
+Vollbildmodus automatisch aufgehoben.
+
+**Anwendung beenden** – Schaltfläche im Fuß der Seitenleiste mit Rückfrage
+(`quit_app` → `AppHandle::exit`).
+
+**Nachrichten-Slideshow auf der Startseite** – eigener RSS-/Atom-Parser im Core
+(`parser/rss.rs`, ohne zusätzliche XML-Abhängigkeit, 6 Tests). Holt öffentliche
+Feeds (Politik/Sport), mischt sie abwechselnd, zeigt Bild + Überschrift +
+Zusammenfassung, Wechsel alle 10 Sekunden, Pause bei Mausberührung. Nicht
+erreichbare Quellen werden übersprungen.
+
+**Einfrieren behoben** – der Playback-Thread arbeitet jetzt die Windows-
+Nachrichten seines Videofensters ab (`pump_thread_messages`). Zuvor stauten
+sich diese Nachrichten, der Hauptthread wartete darauf und die Oberfläche
+meldete „Keine Rückmeldung".
+
+**Aufteilung in Live/Film/Serie für ALLE Importwege** – zuvor nur beim
+Xtream-Import; M3U-Listen landeten komplett in der Kanalliste.

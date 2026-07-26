@@ -344,9 +344,11 @@ pub async fn list_movies(
     category: Option<String>,
     limit: i64,
     offset: i64,
+    sort: Option<String>,
 ) -> CmdResult<Vec<exiptv_core::models::Movie>> {
+    let sort = exiptv_core::models::VodSort::parse(sort.as_deref().unwrap_or("name_asc"));
     let db = state.db.lock().map_err(lock_err)?;
-    db.list_movies(provider_id, category.as_deref(), limit.clamp(1, 200), offset.max(0))
+    db.list_movies(provider_id, category.as_deref(), limit.clamp(1, 200), offset.max(0), sort)
         .map_err(user_err)
 }
 
@@ -363,9 +365,11 @@ pub async fn list_series(
     category: Option<String>,
     limit: i64,
     offset: i64,
+    sort: Option<String>,
 ) -> CmdResult<Vec<exiptv_core::models::Series>> {
+    let sort = exiptv_core::models::VodSort::parse(sort.as_deref().unwrap_or("name_asc"));
     let db = state.db.lock().map_err(lock_err)?;
-    db.list_series(provider_id, category.as_deref(), limit.clamp(1, 200), offset.max(0))
+    db.list_series(provider_id, category.as_deref(), limit.clamp(1, 200), offset.max(0), sort)
         .map_err(user_err)
 }
 
@@ -622,4 +626,70 @@ pub async fn cache_image(
     }
     std::fs::write(&path, &bytes).map_err(|e| format!("Bild konnte nicht gespeichert werden: {e}"))?;
     Ok(path.to_string_lossy().to_string())
+}
+
+/// Beendet die Anwendung geordnet (Wiedergabe stoppen, Fenster schließen).
+#[tauri::command]
+pub async fn quit_app(app: tauri::AppHandle) -> CmdResult<()> {
+    tracing::info!("Anwendung wird auf Nutzerwunsch beendet");
+    app.exit(0);
+    Ok(())
+}
+
+// ------------------------------------------------------------------
+// Nachrichten für die Startseite (öffentliche RSS-Feeds)
+// ------------------------------------------------------------------
+
+/// Öffentliche Nachrichten-Feeds. Bewusst öffentlich zugängliche Quellen
+/// ohne Zugangsdaten; die Auswahl lässt sich später in den Einstellungen
+/// erweitern.
+const NEWS_FEEDS: &[(&str, &str)] = &[
+    ("Politik", "https://www.tagesschau.de/index~rss2.xml"),
+    ("Sport", "https://www.sportschau.de/index~rss2.xml"),
+];
+
+/// Holt aktuelle Nachrichten für die Slideshow auf der Startseite.
+/// Fehlerhafte oder nicht erreichbare Quellen werden übersprungen, damit
+/// die Startseite immer etwas anzeigen kann.
+#[tauri::command]
+pub async fn fetch_news(
+    state: State<'_, AppState>,
+    per_feed: Option<usize>,
+) -> CmdResult<Vec<exiptv_core::parser::rss::NewsItem>> {
+    let per_feed = per_feed.unwrap_or(6).clamp(1, 20);
+    let mut all: Vec<exiptv_core::parser::rss::NewsItem> = Vec::new();
+
+    for &(kategorie, url) in NEWS_FEEDS {
+        match crate::http::get_with_retry(&state.http, url, None, 1).await {
+            Ok(bytes) => {
+                let xml = String::from_utf8_lossy(&bytes);
+                let items = exiptv_core::parser::rss::parse_feed(&xml, kategorie, per_feed);
+                tracing::info!(quelle = kategorie, anzahl = items.len(), "Nachrichten geladen");
+                all.extend(items);
+            }
+            Err(e) => {
+                tracing::warn!(quelle = kategorie, fehler = %e, "Nachrichtenquelle nicht erreichbar");
+            }
+        }
+    }
+
+    if all.is_empty() {
+        return Err("Es konnten keine Nachrichten geladen werden. \
+                    Bitte prüfe deine Internetverbindung."
+            .into());
+    }
+
+    // Politik und Sport abwechselnd mischen, damit die Slideshow abwechslungsreich ist.
+    let (politik, sport): (Vec<_>, Vec<_>) = all.into_iter().partition(|n| n.source == "Politik");
+    let mut gemischt = Vec::with_capacity(politik.len() + sport.len());
+    let mut p = politik.into_iter();
+    let mut s = sport.into_iter();
+    loop {
+        let a = p.next();
+        let b = s.next();
+        if a.is_none() && b.is_none() { break; }
+        if let Some(x) = a { gemischt.push(x); }
+        if let Some(y) = b { gemischt.push(y); }
+    }
+    Ok(gemischt)
 }

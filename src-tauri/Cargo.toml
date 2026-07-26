@@ -1,6 +1,6 @@
 [package]
 name = "exiptv"
-version = "0.9.1"
+version = "1.0.0"
 description = "EXIPTV – IPTV-Player für Windows"
 edition = "2021"
 license = "MIT"

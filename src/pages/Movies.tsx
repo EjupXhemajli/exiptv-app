@@ -21,6 +21,7 @@ export default function Movies() {
   const [playing, setPlaying] = useState<Movie | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const catCol = useResizable("ui.movies_cat_width", 260, 170, 460);
+  const [sort, setSort] = useState<string>("name_asc");
 
   useEffect(() => {
     backend.listProviders().then((ps) => {
@@ -42,10 +43,10 @@ export default function Movies() {
     setMovies([]); setExhausted(false);
     void loadMore(providerId, category, []);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [providerId, category]);
+  }, [providerId, category, sort]);
 
   async function loadMore(pid: number, cat: string | null, current: Movie[]) {
-    const page = await backend.listMovies(pid, cat, PAGE, current.length);
+    const page = await backend.listMovies(pid, cat, PAGE, current.length, sort);
     setMovies([...current, ...page]);
     if (page.length < PAGE) setExhausted(true);
   }
@@ -76,11 +77,27 @@ export default function Movies() {
           <h1>{t("nav.movies")}</h1>
           <p className="dim">{category ?? t("movies.allCategories")} · {t("movies.count", { count: movies.length })}</p>
         </div>
-        {providers && providers.length > 1 && (
-          <select style={{ width: 220 }} value={providerId ?? ""} onChange={(e) => setProviderId(Number(e.target.value))}>
-            {providers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+        <div className="row" style={{ gap: 10 }}>
+          <select
+            value={sort}
+            onChange={(e) => setSort(e.target.value)}
+            style={{ width: 210 }}
+            aria-label={t("movies.sortBy")}
+            title={t("movies.sortBy")}
+          >
+            <option value="name_asc">{t("movies.sortNameAsc")}</option>
+            <option value="name_desc">{t("movies.sortNameDesc")}</option>
+            <option value="year_desc">{t("movies.sortYearDesc")}</option>
+            <option value="year_asc">{t("movies.sortYearAsc")}</option>
+            <option value="recently_added">{t("movies.sortRecent")}</option>
+            <option value="rating_desc">{t("movies.sortRating")}</option>
           </select>
-        )}
+          {providers && providers.length > 1 && (
+            <select style={{ width: 200 }} value={providerId ?? ""} onChange={(e) => setProviderId(Number(e.target.value))}>
+              {providers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          )}
+        </div>
       </header>
 
       <div className="row" style={{ alignItems: "stretch", gap: 0, flex: 1, minHeight: 0 }}>

@@ -12,7 +12,9 @@
     "providers": "Providers",
     "settings": "Settings",
     "collapse": "Collapse sidebar",
-    "expand": "Expand sidebar"
+    "expand": "Expand sidebar",
+    "quit": "Quit",
+    "quitConfirm": "Really quit EXIPTV?"
   },
   "home": {
     "greetingMorning": "Good morning",
@@ -202,7 +204,8 @@
     "track": "Track",
     "aspect": "Aspect ratio",
     "fullscreen": "Fullscreen",
-    "channelList": "Channels"
+    "channelList": "Channels",
+    "fullscreenHint": "Press Escape to return to the controls"
   },
   "movies": {
     "emptyTitle": "No movies yet",
@@ -210,7 +213,14 @@
     "director": "Director",
     "cast": "Cast",
     "play": "Play",
-    "count": "{{count}} movies"
+    "count": "{{count}} movies",
+    "sortBy": "Sort by",
+    "sortNameAsc": "A – Z",
+    "sortNameDesc": "Z – A",
+    "sortYearDesc": "Year (newest first)",
+    "sortYearAsc": "Year (oldest first)",
+    "sortRecent": "Recently added",
+    "sortRating": "Best rating"
   },
   "series": {
     "emptyTitle": "No series yet",
@@ -231,5 +241,11 @@
     "emptyText": "Recently watched channels appear here.",
     "clear": "Clear history",
     "clearConfirm": "Clear the entire watch history?"
+  },
+  "news": {
+    "unavailable": "News are currently unavailable.",
+    "prev": "Previous story",
+    "next": "Next story",
+    "goTo": "Go to story {{n}}"
   }
 }

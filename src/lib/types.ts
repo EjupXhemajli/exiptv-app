@@ -156,3 +156,12 @@ export interface Episode {
   duration_s: number | null;
   poster_url: string | null;
 }
+
+export interface NewsItem {
+  title: string;
+  summary: string;
+  link: string;
+  image_url: string | null;
+  published: string | null;
+  source: string;
+}
