@@ -9,7 +9,6 @@
     "core:window:allow-set-fullscreen",
     "core:window:allow-is-fullscreen",
     "core:window:allow-start-dragging",
-    "core:asset:default",
     "dialog:default",
     "opener:default"
   ]
