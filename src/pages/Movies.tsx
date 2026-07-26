@@ -4,6 +4,7 @@ import { backend } from "../lib/backend";
 import EmptyState from "../components/EmptyState";
 import Poster from "../components/Poster";
 import Player from "../components/Player";
+import { useResizable } from "../components/useResizable";
 import type { Channel, Movie, Provider } from "../lib/types";
 
 const PAGE = 60;
@@ -19,6 +20,7 @@ export default function Movies() {
   const [detail, setDetail] = useState<Movie | null>(null);
   const [playing, setPlaying] = useState<Movie | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const catCol = useResizable("ui.movies_cat_width", 260, 170, 460);
 
   useEffect(() => {
     backend.listProviders().then((ps) => {
@@ -70,7 +72,10 @@ export default function Movies() {
   return (
     <>
       <header className="row" style={{ justifyContent: "space-between" }}>
-        <h1>{t("nav.movies")}</h1>
+        <div>
+          <h1>{t("nav.movies")}</h1>
+          <p className="dim">{category ?? t("movies.allCategories")} · {t("movies.count", { count: movies.length })}</p>
+        </div>
         {providers && providers.length > 1 && (
           <select style={{ width: 220 }} value={providerId ?? ""} onChange={(e) => setProviderId(Number(e.target.value))}>
             {providers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -78,47 +83,70 @@ export default function Movies() {
         )}
       </header>
 
-      {/* Kategorien */}
-      {categories.length > 0 && (
-        <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
-          <button className={category === null ? "primary" : ""} onClick={() => setCategory(null)}>
+      <div className="row" style={{ alignItems: "stretch", gap: 0, flex: 1, minHeight: 0 }}>
+        {/* Kategorienliste links (ziehbare Breite) – wie bei Live-TV */}
+        <aside
+          className="card"
+          style={{ width: catCol.width, flexShrink: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: 2 }}
+        >
+          <button
+            className={`group-btn ${category === null ? "active" : ""}`}
+            onClick={() => setCategory(null)}
+          >
             {t("movies.allCategories")}
           </button>
           {categories.map((c) => (
-            <button key={c} className={category === c ? "primary" : ""} onClick={() => setCategory(c)}>{c}</button>
-          ))}
-        </div>
-      )}
-
-      {movies.length === 0 && !exhausted && (
-        <div className="vod-grid">
-          {Array.from({ length: 12 }).map((_, i) => (
-            <div key={i} className="skeleton" style={{ aspectRatio: "2 / 3", borderRadius: "var(--radius-m)" }} />
-          ))}
-        </div>
-      )}
-
-      {movies.length === 0 && exhausted && (
-        <EmptyState title={t("movies.emptyTitle")} text={t("empty.movies")} />
-      )}
-
-      <div ref={scrollRef} onScroll={onScroll} style={{ overflowY: "auto", flex: 1, minHeight: 0 }}>
-        <div className="vod-grid">
-          {movies.map((m) => (
-            <div
-              key={m.id} className="vod-card" tabIndex={0} role="button"
-              onClick={() => setDetail(m)}
-              onKeyDown={(e) => { if (e.key === "Enter") setDetail(m); }}
+            <button
+              key={c}
+              className={`group-btn ${category === c ? "active" : ""}`}
+              onClick={() => setCategory(c)}
+              title={c}
             >
-              <Poster src={m.poster_url} alt={m.name} />
-              <span className="title">{m.name}</span>
-              {(m.year || m.rating) && (
-                <span className="meta">
-                  {m.year ?? ""}{m.year && m.rating ? " · " : ""}{m.rating ? `★ ${m.rating.toFixed(1)}` : ""}
-                </span>
-              )}
-            </div>
+              {c}
+            </button>
           ))}
+        </aside>
+
+        {/* Ziehbare Trennlinie */}
+        <div
+          className="col-resizer"
+          onMouseDown={catCol.onMouseDown}
+          role="separator"
+          aria-orientation="vertical"
+          aria-label={t("live.resizeColumns")}
+        />
+
+        {/* Filmraster rechts */}
+        <div ref={scrollRef} onScroll={onScroll} className="card grow" style={{ overflowY: "auto", padding: 12 }}>
+          {movies.length === 0 && !exhausted && (
+            <div className="vod-grid">
+              {Array.from({ length: 12 }).map((_, i) => (
+                <div key={i} className="skeleton" style={{ aspectRatio: "2 / 3", borderRadius: "var(--radius-m)" }} />
+              ))}
+            </div>
+          )}
+
+          {movies.length === 0 && exhausted && (
+            <EmptyState title={t("movies.emptyTitle")} text={t("empty.movies")} />
+          )}
+
+          <div className="vod-grid">
+            {movies.map((m) => (
+              <div
+                key={m.id} className="vod-card" tabIndex={0} role="button"
+                onClick={() => setDetail(m)}
+                onKeyDown={(e) => { if (e.key === "Enter") setDetail(m); }}
+              >
+                <Poster src={m.poster_url} alt={m.name} />
+                <span className="title">{m.name}</span>
+                {(m.year || m.rating) && (
+                  <span className="meta">
+                    {m.year ?? ""}{m.year && m.rating ? " · " : ""}{m.rating ? `★ ${m.rating.toFixed(1)}` : ""}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 

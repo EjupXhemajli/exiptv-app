@@ -209,14 +209,16 @@
     "allCategories": "All categories",
     "director": "Director",
     "cast": "Cast",
-    "play": "Play"
+    "play": "Play",
+    "count": "{{count}} movies"
   },
   "series": {
     "emptyTitle": "No series yet",
     "season": "Season {{n}}",
     "episode": "Episode {{n}}",
     "episodeCount": "{{count}} episodes",
-    "noSeasons": "No seasons available for this series yet."
+    "noSeasons": "No seasons available for this series yet.",
+    "count": "{{count}} series"
   },
   "favorites": {
     "emptyTitle": "No favorites yet",

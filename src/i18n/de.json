@@ -209,14 +209,16 @@
     "allCategories": "Alle Kategorien",
     "director": "Regie",
     "cast": "Besetzung",
-    "play": "Abspielen"
+    "play": "Abspielen",
+    "count": "{{count}} Filme"
   },
   "series": {
     "emptyTitle": "Noch keine Serien",
     "season": "Staffel {{n}}",
     "episode": "Folge {{n}}",
     "episodeCount": "{{count}} Folgen",
-    "noSeasons": "Für diese Serie sind noch keine Staffeln verfügbar."
+    "noSeasons": "Für diese Serie sind noch keine Staffeln verfügbar.",
+    "count": "{{count}} Serien"
   },
   "favorites": {
     "emptyTitle": "Noch keine Favoriten",

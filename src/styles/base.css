@@ -315,3 +315,28 @@ input[type="color"] {
   font-family: ui-monospace, "Cascadia Code", monospace; font-size: 12.5px; line-height: 1.5;
   color: var(--text-dim); white-space: pre-wrap; word-break: break-word;
 }
+
+/* ===== Kategorien-/Gruppenliste in der linken Spalte ===== */
+.group-btn {
+  text-align: left;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-dim);
+  padding: 9px 12px;
+  border-radius: var(--radius-m);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+  transition: background var(--transition), color var(--transition), border-color var(--transition);
+}
+.group-btn:hover {
+  background: rgba(148,163,216,0.08);
+  color: var(--text);
+}
+.group-btn.active {
+  background: linear-gradient(120deg, rgba(139,92,246,0.18), rgba(41,194,246,0.10));
+  border-color: rgba(139,92,246,0.3);
+  color: #fff;
+}

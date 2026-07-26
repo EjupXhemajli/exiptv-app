@@ -4,6 +4,7 @@ import { backend } from "../lib/backend";
 import EmptyState from "../components/EmptyState";
 import Poster from "../components/Poster";
 import Player from "../components/Player";
+import { useResizable } from "../components/useResizable";
 import type { Channel, Episode, Season, Series as SeriesT, Provider } from "../lib/types";
 
 const PAGE = 60;
@@ -22,6 +23,7 @@ export default function Series() {
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [playing, setPlaying] = useState<{ ep: Episode; poster: string | null; seriesName: string } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const catCol = useResizable("ui.series_cat_width", 260, 170, 460);
 
   useEffect(() => {
     backend.listProviders().then((ps) => {
@@ -99,7 +101,10 @@ export default function Series() {
   return (
     <>
       <header className="row" style={{ justifyContent: "space-between" }}>
-        <h1>{t("nav.series")}</h1>
+        <div>
+          <h1>{t("nav.series")}</h1>
+          <p className="dim">{category ?? t("movies.allCategories")} · {t("series.count", { count: series.length })}</p>
+        </div>
         {providers && providers.length > 1 && (
           <select style={{ width: 220 }} value={providerId ?? ""} onChange={(e) => setProviderId(Number(e.target.value))}>
             {providers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -107,46 +112,70 @@ export default function Series() {
         )}
       </header>
 
-      {categories.length > 0 && (
-        <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
-          <button className={category === null ? "primary" : ""} onClick={() => setCategory(null)}>
+      <div className="row" style={{ alignItems: "stretch", gap: 0, flex: 1, minHeight: 0 }}>
+        {/* Kategorienliste links (ziehbare Breite) – wie bei Live-TV */}
+        <aside
+          className="card"
+          style={{ width: catCol.width, flexShrink: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: 2 }}
+        >
+          <button
+            className={`group-btn ${category === null ? "active" : ""}`}
+            onClick={() => setCategory(null)}
+          >
             {t("movies.allCategories")}
           </button>
           {categories.map((c) => (
-            <button key={c} className={category === c ? "primary" : ""} onClick={() => setCategory(c)}>{c}</button>
-          ))}
-        </div>
-      )}
-
-      {series.length === 0 && !exhausted && (
-        <div className="vod-grid">
-          {Array.from({ length: 12 }).map((_, i) => (
-            <div key={i} className="skeleton" style={{ aspectRatio: "2 / 3", borderRadius: "var(--radius-m)" }} />
-          ))}
-        </div>
-      )}
-
-      {series.length === 0 && exhausted && (
-        <EmptyState title={t("series.emptyTitle")} text={t("empty.series")} />
-      )}
-
-      <div ref={scrollRef} onScroll={onScroll} style={{ overflowY: "auto", flex: 1, minHeight: 0 }}>
-        <div className="vod-grid">
-          {series.map((s) => (
-            <div
-              key={s.id} className="vod-card" tabIndex={0} role="button"
-              onClick={() => void openDetail(s)}
-              onKeyDown={(e) => { if (e.key === "Enter") void openDetail(s); }}
+            <button
+              key={c}
+              className={`group-btn ${category === c ? "active" : ""}`}
+              onClick={() => setCategory(c)}
+              title={c}
             >
-              <Poster src={s.poster_url} alt={s.name} />
-              <span className="title">{s.name}</span>
-              {(s.year || s.rating) && (
-                <span className="meta">
-                  {s.year ?? ""}{s.year && s.rating ? " · " : ""}{s.rating ? `★ ${s.rating.toFixed(1)}` : ""}
-                </span>
-              )}
-            </div>
+              {c}
+            </button>
           ))}
+        </aside>
+
+        {/* Ziehbare Trennlinie */}
+        <div
+          className="col-resizer"
+          onMouseDown={catCol.onMouseDown}
+          role="separator"
+          aria-orientation="vertical"
+          aria-label={t("live.resizeColumns")}
+        />
+
+        {/* Serienraster rechts */}
+        <div ref={scrollRef} onScroll={onScroll} className="card grow" style={{ overflowY: "auto", padding: 12 }}>
+          {series.length === 0 && !exhausted && (
+            <div className="vod-grid">
+              {Array.from({ length: 12 }).map((_, i) => (
+                <div key={i} className="skeleton" style={{ aspectRatio: "2 / 3", borderRadius: "var(--radius-m)" }} />
+              ))}
+            </div>
+          )}
+
+          {series.length === 0 && exhausted && (
+            <EmptyState title={t("series.emptyTitle")} text={t("empty.series")} />
+          )}
+
+          <div className="vod-grid">
+            {series.map((s) => (
+              <div
+                key={s.id} className="vod-card" tabIndex={0} role="button"
+                onClick={() => void openDetail(s)}
+                onKeyDown={(e) => { if (e.key === "Enter") void openDetail(s); }}
+              >
+                <Poster src={s.poster_url} alt={s.name} />
+                <span className="title">{s.name}</span>
+                {(s.year || s.rating) && (
+                  <span className="meta">
+                    {s.year ?? ""}{s.year && s.rating ? " · " : ""}{s.rating ? `★ ${s.rating.toFixed(1)}` : ""}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
