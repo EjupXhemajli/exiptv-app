@@ -1,0 +1,59 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "EXIPTV",
+  "version": "0.6.0",
+  "identifier": "app.exiptv.desktop",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "EXIPTV",
+        "width": 1360,
+        "height": 840,
+        "minWidth": 980,
+        "minHeight": 620,
+        "center": true,
+        "dragDropEnabled": true,
+        "theme": "Dark"
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost https: http: data:; media-src 'self' https: http:; connect-src 'self' ipc: http://ipc.localhost; font-src 'self'",
+      "assetProtocol": {
+        "enable": true,
+        "scope": ["$APPCACHE/**", "$APPCACHE/images/**"]
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["msi", "nsis"],
+    "resources": {
+      "resources/libmpv-2.dll": "libmpv-2.dll"
+    },
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico"
+    ],
+    "shortDescription": "EXIPTV – IPTV-Player für Windows",
+    "longDescription": "EXIPTV ist ein moderner IPTV-Player für Windows: M3U- und Xtream-Zugänge, EPG, Filme, Serien, Favoriten und Aufnahmen – schnell, stabil, lokal.",
+    "publisher": "EXIPTV",
+    "copyright": "© 2026 EXIPTV",
+    "category": "Video",
+    "windows": {
+      "nsis": {
+        "languages": ["German", "English"],
+        "displayLanguageSelector": true,
+        "installMode": "currentUser"
+      }
+    }
+  }
+}

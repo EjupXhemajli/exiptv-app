@@ -1,0 +1,18 @@
+[package]
+name = "exiptv-core"
+description = "EXIPTV Kernbibliothek: Parser, Datenmodell, Datenbank, Sicherheit"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+rusqlite = { version = "0.31", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "1"
+encoding_rs = "0.8"
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
+tracing = "0.1"
+
+[dev-dependencies]
+tempfile = "=3.10.1"

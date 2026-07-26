@@ -1,0 +1,34 @@
+EXIPTV — Hochladen zu GitHub (Schritt für Schritt)
+===================================================
+
+WICHTIG: In diesem Ordner liegt ein Ordner namens ".github"
+(mit Punkt am Anfang). Der MUSS mit hochgeladen werden,
+sonst laeuft weiterhin der alte Build.
+
+1. Diese Zip-Datei entpacken und den entpackten Ordner oeffnen.
+
+2. Im Browser dein GitHub-Repository oeffnen.
+   Oben auf "Add file" klicken, dann "Upload files".
+
+3. Zurueck zum entpackten Ordner:
+   EINMAL in den weissen Bereich klicken, dann
+   Strg + A druecken  (markiert ALLES, auch ".github").
+
+4. Die markierten Dateien mit der Maus in das
+   GitHub-Browserfenster ziehen (auf die Flaeche
+   "Drag files here...").
+
+5. Warten, bis alle Dateien in der Liste stehen.
+   KONTROLLE: In der Liste muss etwas mit ".github" auftauchen.
+   Fehlt es: Schritt 3 und 4 wiederholen und darauf achten,
+   dass der Ordner ".github" mit markiert ist.
+
+6. Unten auf den gruenen Knopf "Commit changes" klicken.
+
+7. Reiter "Actions" oeffnen. Der Build startet von selbst.
+   ERFOLGSKONTROLLE: Im laufenden Job muss es einen Schritt
+   "Installer als Release veroeffentlichen" geben.
+
+8. Nach ca. 5-15 Minuten: Auf die Startseite des Repositories
+   gehen. Rechts unter "Releases" auf "EXIPTV - aktueller Build"
+   klicken und die Setup-EXE herunterladen.

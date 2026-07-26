@@ -1,0 +1,47 @@
+[package]
+name = "exiptv"
+version = "0.6.0"
+description = "EXIPTV – IPTV-Player für Windows"
+edition = "2021"
+license = "MIT"
+rust-version = "1.77"
+
+# Eigenständig (nicht Teil des Root-Workspaces), damit der Core
+# unabhängig von der Tauri-Toolchain getestet werden kann.
+[workspace]
+
+[lib]
+name = "exiptv_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+exiptv-core = { path = "../core" }
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "fs"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "gzip", "brotli", "deflate", "cookies", "stream", "blocking"] }
+keyring = "3"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-appender = "0.2"
+dirs = "5"
+
+# Wiedergabe (Phase 4)
+libmpv2 = "4"
+sevenz-rust = "0.6"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Gdi",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+[features]
+default = []

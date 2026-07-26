@@ -1,0 +1,2 @@
+Dieses Verzeichnis nimmt beim Windows-Build die libmpv-2.dll auf
+(automatisch durch den GitHub-Actions-Workflow). Nicht manuell befüllen.

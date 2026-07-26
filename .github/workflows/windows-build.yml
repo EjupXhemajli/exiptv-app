@@ -1,0 +1,256 @@
+name: EXIPTV Windows-Build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  core-tests:
+    name: Core-Tests (headless)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Projektordner automatisch finden — funktioniert egal, ob die Dateien
+      # direkt im Repo-Root liegen oder in einem Unterordner.
+      - name: Projektordner finden
+        id: locate
+        shell: bash
+        run: |
+          if [ -f package.json ] && [ -f Cargo.toml ]; then
+            DIR="."
+          else
+            DIR=""
+            for pkg in $(find . -maxdepth 4 -name package.json -not -path '*/node_modules/*'); do
+              d=$(dirname "$pkg")
+              if [ -f "$d/Cargo.toml" ]; then DIR="$d"; break; fi
+            done
+          fi
+          if [ -z "$DIR" ] || [ ! -f "$DIR/Cargo.toml" ]; then
+            echo "::error::Projekt nicht gefunden: Es wurde kein Ordner mit package.json UND Cargo.toml entdeckt."
+            find . -maxdepth 4 -name package.json -o -maxdepth 4 -name Cargo.toml | head -20
+            exit 1
+          fi
+          echo "Projektordner: $DIR"
+          echo "dir=$DIR" >> "$GITHUB_OUTPUT"
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: exiptv-v2
+          workspaces: ${{ steps.locate.outputs.dir }}
+
+      - name: Tests ausführen
+        working-directory: ${{ steps.locate.outputs.dir }}
+        run: cargo test -p exiptv-core --all-features
+
+  windows:
+    name: Windows-Installer (MSI + NSIS)
+    needs: core-tests
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Projektordner finden
+        id: locate
+        shell: bash
+        run: |
+          # Suche den Ordner, der sowohl package.json als auch Cargo.toml
+          # enthält (das ist die echte Projektwurzel – auch wenn beim Upload
+          # ein zusätzlicher Unterordner entstanden ist, z. B. Repo/Repo/...).
+          if [ -f package.json ] && [ -f Cargo.toml ]; then
+            DIR="."
+          else
+            DIR=""
+            for pkg in $(find . -maxdepth 4 -name package.json -not -path '*/node_modules/*'); do
+              d=$(dirname "$pkg")
+              if [ -f "$d/Cargo.toml" ]; then DIR="$d"; break; fi
+            done
+            # Fallback: erster package.json-Ordner, falls kein Cargo.toml daneben.
+            if [ -z "$DIR" ]; then
+              DIR=$(dirname "$(find . -maxdepth 4 -name package.json -not -path '*/node_modules/*' | head -n 1)")
+            fi
+          fi
+          if [ -z "$DIR" ] || [ ! -f "$DIR/package.json" ]; then
+            echo "FEHLER: Projektordner mit package.json nicht gefunden."
+            echo "Bitte sicherstellen, dass beim Upload ALLE Dateien inkl. package.json enthalten sind."
+            exit 1
+          fi
+          echo "Projektordner: $DIR"
+          echo "dir=$DIR" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          # WICHTIG: KEIN 'cache: npm' hier. Das npm-Caching sucht die
+          # package-lock.json im Repo-Wurzelverzeichnis und schlägt fehl, wenn
+          # das Projekt in einem Unterordner liegt ("Dependencies lock file is
+          # not found"). Wir cachen npm bewusst nicht – der Build bleibt robust.
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: exiptv-v3
+          workspaces: ${{ steps.locate.outputs.dir }}/src-tauri
+
+      # libmpv für Windows beschaffen: DLL + Import-Bibliothek (.lib).
+      # libmpv2-sys verlangt zur Compile-Zeit eine mpv.lib (cargo:rustc-link-lib=mpv).
+      # Die mpv-dev-Archive liefern mpv.def; daraus erzeugt lib.exe die .lib.
+      # Die Download-URL wird dynamisch über die GitHub-API ermittelt, damit
+      # sie unabhängig von konkreten Versionsnummern/Dateinamen stabil bleibt.
+      - name: libmpv beschaffen und mpv.lib erzeugen
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: ${{ steps.locate.outputs.dir }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $mpvDir = Join-Path $PWD "mpv-dev"
+          New-Item -ItemType Directory -Force -Path $mpvDir | Out-Null
+
+          $headers = @{
+            "Accept"               = "application/vnd.github+json"
+            "X-GitHub-Api-Version" = "2022-11-28"
+            "Authorization"        = "Bearer $env:GH_TOKEN"
+            "User-Agent"           = "EXIPTV-CI"
+          }
+
+          # Kandidaten-Repos (Reihenfolge = Priorität). Für jedes fragen wir die
+          # neuesten Releases ab und suchen das erste 64-Bit-libmpv-dev-Asset.
+          $repos = @("zhongfly/mpv-winbuild", "shinchiro/mpv-winbuild-cmake")
+          $downloadUrl = $null
+          foreach ($repo in $repos) {
+            try {
+              $releases = Invoke-RestMethod -Headers $headers -Uri "https://api.github.com/repos/$repo/releases?per_page=10"
+            } catch {
+              Write-Host "Releases von $repo nicht abrufbar: $($_.Exception.Message)"
+              continue
+            }
+            foreach ($rel in $releases) {
+              foreach ($asset in $rel.assets) {
+                $n = $asset.name.ToLower()
+                if ($n -like "mpv-dev-x86_64-*.7z" -and $n -notlike "*-v3-*") {
+                  $downloadUrl = $asset.browser_download_url
+                  Write-Host "Gefunden in $repo : $($asset.name)"
+                  break
+                }
+              }
+              if ($downloadUrl) { break }
+            }
+            if ($downloadUrl) { break }
+          }
+          if (-not $downloadUrl) { throw "Kein libmpv-dev-Asset über die GitHub-API gefunden." }
+
+          $archive = Join-Path $mpvDir "mpv-dev.7z"
+          Write-Host "Lade $downloadUrl"
+          Invoke-WebRequest -Uri $downloadUrl -OutFile $archive -UseBasicParsing -Headers @{ "User-Agent" = "EXIPTV-CI" }
+          if ((Get-Item $archive).Length -lt 10MB) { throw "Heruntergeladenes Archiv ist zu klein." }
+
+          # 7-Zip ist auf windows-latest vorhanden.
+          & 7z x $archive "-o$mpvDir" -y | Out-Null
+
+          $dll = Get-ChildItem -Path $mpvDir -Recurse -Filter "libmpv-2.dll" | Select-Object -First 1
+          if (-not $dll) { throw "libmpv-2.dll nicht im Archiv gefunden." }
+          Write-Host "DLL: $($dll.FullName)"
+
+          # Developer-Umgebung (lib.exe / dumpbin) laden.
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vsPath = & $vswhere -latest -property installationPath
+          Import-Module (Join-Path $vsPath "Common7\Tools\Microsoft.VisualStudio.DevShell.dll")
+          Enter-VsDevShell -VsInstallPath $vsPath -SkipAutomaticLocation -DevCmdArguments "-arch=x64 -host_arch=x64"
+
+          $libOut = Join-Path $mpvDir "mpv.lib"
+
+          # Importbibliothek beschaffen – drei Wege, der letzte funktioniert immer.
+          $defFile = Get-ChildItem -Path $mpvDir -Recurse -Filter "*.def" | Select-Object -First 1
+          $dllA    = Get-ChildItem -Path $mpvDir -Recurse -Filter "libmpv.dll.a" | Select-Object -First 1
+
+          if ($defFile) {
+            Write-Host "Weg 1: mpv.lib aus vorhandener .def erzeugen ($($defFile.Name))."
+            & lib "/def:$($defFile.FullName)" /name:libmpv-2.dll "/out:$libOut" /MACHINE:X64 | Out-Null
+          }
+          elseif ($dllA) {
+            Write-Host "Weg 2: mitgelieferte libmpv.dll.a direkt als mpv.lib verwenden."
+            Copy-Item -Path $dllA.FullName -Destination $libOut -Force
+          }
+
+          if (-not (Test-Path $libOut)) {
+            Write-Host "Weg 3: .def aus der DLL per dumpbin erzeugen und mpv.lib bauen."
+            $exportsTxt = Join-Path $mpvDir "exports.txt"
+            & dumpbin /exports $dll.FullName | Out-File -Encoding ascii $exportsTxt
+
+            # Exportnamen aus der dumpbin-Tabelle extrahieren
+            # (Spalten: ordinal  hint  RVA  name).
+            $names = Get-Content $exportsTxt |
+              Where-Object { $_ -match '^\s+\d+\s+[0-9A-Fa-f]+\s+[0-9A-Fa-f]+\s+(\S+)' } |
+              ForEach-Object { ($_ -split '\s+')[-1] } |
+              Where-Object { $_ -like "mpv_*" }
+
+            if (-not $names -or $names.Count -eq 0) { throw "Keine mpv-Exporte in der DLL gefunden." }
+
+            $defOut = Join-Path $mpvDir "libmpv-2.def"
+            "EXPORTS" | Out-File -Encoding ascii $defOut
+            $names | Out-File -Encoding ascii -Append $defOut
+            Write-Host "  $($names.Count) Exporte in $defOut geschrieben."
+
+            & lib "/def:$defOut" /name:libmpv-2.dll "/out:$libOut" /MACHINE:X64 | Out-Null
+          }
+
+          if (-not (Test-Path $libOut)) { throw "mpv.lib konnte nicht erzeugt werden." }
+          Write-Host "mpv.lib erzeugt: $libOut"
+
+          # Linker-Suchpfad und DLL-Ablage an nachfolgende Schritte weitergeben.
+          "MPV_DLL_PATH=$($dll.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "LIB=$mpvDir;$env:LIB"          | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      # DLL in die Tauri-Ressourcen legen, damit sie in den Installer wandert.
+      - name: libmpv-DLL fürs Bundle bereitstellen
+        shell: pwsh
+        working-directory: ${{ steps.locate.outputs.dir }}
+        run: |
+          $res = Join-Path $PWD "src-tauri\resources"
+          New-Item -ItemType Directory -Force -Path $res | Out-Null
+          Copy-Item -Path $env:MPV_DLL_PATH -Destination (Join-Path $res "libmpv-2.dll") -Force
+          Write-Host "DLL nach $res kopiert."
+
+      - name: Frontend-Abhängigkeiten
+        working-directory: ${{ steps.locate.outputs.dir }}
+        shell: bash
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+
+      - name: Frontend-Build (Typprüfung + Bundle)
+        working-directory: ${{ steps.locate.outputs.dir }}
+        run: npm run build
+
+      # Schnelle Rust-Prüfung der Tauri-Shell VOR dem teuren Release-Build,
+      # damit Kompilierfehler nach wenigen Minuten sichtbar werden.
+      - name: Rust-Prüfung (cargo check)
+        working-directory: ${{ steps.locate.outputs.dir }}/src-tauri
+        run: cargo check --release
+
+      - name: Tauri-Build (Release, MSI + NSIS)
+        working-directory: ${{ steps.locate.outputs.dir }}
+        run: npx tauri build
+
+      # Dauerhafter Download unter "Releases".
+      # Belastet das Actions-Speicherkontingent nicht; gleichnamige Dateien
+      # werden bei jedem Lauf ersetzt.
+      - name: Installer als Release veröffentlichen
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: aktueller-build
+          name: "EXIPTV – aktueller Build"
+          prerelease: true
+          body: |
+            Automatisch erzeugter Windows-Installer aus dem letzten erfolgreichen Build.
+            Empfohlen: die Setup-EXE (NSIS, Deutsch/Englisch). Alternativ die MSI-Datei.
+          files: |
+            ${{ steps.locate.outputs.dir }}/src-tauri/target/release/bundle/msi/*.msi
+            ${{ steps.locate.outputs.dir }}/src-tauri/target/release/bundle/nsis/*.exe

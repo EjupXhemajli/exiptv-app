@@ -1,0 +1,13 @@
+[workspace]
+resolver = "2"
+# Der headless testbare Core. Die Tauri-Shell (`src-tauri`) ist bewusst ein
+# eigenständiges Crate (eigener Lockfile-Kontext), damit Core-Tests ohne
+# WebView2-/Tauri-Toolchain laufen — z. B. in CI-Jobs oder Sandboxen.
+members = ["core"]
+exclude = ["src-tauri"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+authors = ["EXIPTV"]
