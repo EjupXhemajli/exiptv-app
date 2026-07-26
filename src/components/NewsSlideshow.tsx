@@ -24,8 +24,32 @@ export default function NewsSlideshow() {
   // Einmal beim Öffnen laden.
   useEffect(() => {
     let aktiv = true;
-    backend.fetchNews(6)
-      .then((n) => { if (aktiv) { setItems(n); setFailed(n.length === 0); } })
+    backend.fetchNews(4)
+      .then((n) => {
+        if (!aktiv) return;
+        setItems(n);
+        setFailed(n.length === 0);
+        // Fehlende Bilder nacheinander im Hintergrund nachladen, damit die
+        // Slideshow sofort erscheint und sich nach und nach vervollständigt.
+        void (async () => {
+          for (let i = 0; i < n.length; i++) {
+            if (!aktiv) return;
+            if (n[i].image_url || !n[i].link) continue;
+            try {
+              const bild = await backend.fetchArticleImage(n[i].link);
+              if (!aktiv || !bild) continue;
+              setItems((vorher) => {
+                if (!vorher) return vorher;
+                const kopie = [...vorher];
+                if (kopie[i] && !kopie[i].image_url) {
+                  kopie[i] = { ...kopie[i], image_url: bild };
+                }
+                return kopie;
+              });
+            } catch { /* einzelnes Bild darf fehlschlagen */ }
+          }
+        })();
+      })
       .catch(() => { if (aktiv) setFailed(true); });
     return () => { aktiv = false; };
   }, []);
@@ -64,14 +88,26 @@ export default function NewsSlideshow() {
       <div className="news-media">
         {current.image_url ? (
           <img
+            key={current.image_url}
             src={current.image_url}
             alt=""
-            onError={(e) => { (e.target as HTMLImageElement).style.visibility = "hidden"; }}
+            onError={async (e) => {
+              // Manche Nachrichtenbilder laden nicht direkt (Hotlink-Schutz).
+              // Dann über das Backend holen – wie bei den Filmpostern.
+              const el = e.target as HTMLImageElement;
+              if (el.dataset.retried) { el.style.visibility = "hidden"; return; }
+              el.dataset.retried = "1";
+              try {
+                el.src = await backend.cacheImage(current.image_url!);
+              } catch {
+                el.style.visibility = "hidden";
+              }
+            }}
           />
         ) : (
           <div className="news-media-fallback" aria-hidden="true" />
         )}
-        <span className={`news-tag ${current.source === "Sport" ? "sport" : "politik"}`}>
+        <span className={`news-tag ${current.source === "Politik" ? "politik" : current.source === "Fußball" ? "fussball" : "sport"}`}>
           {current.source}
         </span>
       </div>

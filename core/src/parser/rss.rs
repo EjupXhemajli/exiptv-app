@@ -261,3 +261,108 @@ mod tests {
         assert!(parse_feed("<rss><item><title></title></item></rss>", "X", 5).is_empty());
     }
 }
+
+/// Sucht das Vorschaubild einer Artikelseite (`og:image`, `twitter:image`
+/// oder das erste große `<img>`).
+///
+/// Nachrichtenseiten hinterlegen für Vorschauen ein passendes Bild in den
+/// Meta-Angaben. Liefert ein RSS-Feed kein Bild mit, lässt sich so ein
+/// zur Meldung gehörendes Bild nachladen.
+pub fn extract_article_image(html: &str) -> Option<String> {
+    // Nur den Kopfbereich durchsuchen (dort stehen die Meta-Angaben) –
+    // begrenzt die Arbeit bei großen Seiten.
+    let head_end = html.find("</head>").unwrap_or(html.len().min(60_000));
+    let head = &html[..head_end];
+
+    for prop in ["og:image", "twitter:image", "og:image:secure_url"] {
+        if let Some(url) = meta_content(head, prop) {
+            if url.starts_with("http") {
+                return Some(url);
+            }
+        }
+    }
+    None
+}
+
+/// Wert des `content`-Attributs eines `<meta>`-Tags mit gegebener
+/// `property` oder `name`.
+fn meta_content(html: &str, key: &str) -> Option<String> {
+    let mut rest = html;
+    while let Some(pos) = rest.find("<meta") {
+        let after = &rest[pos..];
+        let end = after.find('>')?;
+        let tag = &after[..end];
+        // Enthält der Tag den gesuchten Schlüssel (als property oder name)?
+        let hat_key = ["property", "name", "itemprop"].iter().any(|attr| {
+            tag_attr(tag, attr).map(|v| v.eq_ignore_ascii_case(key)).unwrap_or(false)
+        });
+        if hat_key {
+            if let Some(content) = tag_attr(tag, "content") {
+                if !content.is_empty() {
+                    return Some(decode_entities(&content));
+                }
+            }
+        }
+        rest = &after[end + 1..];
+    }
+    None
+}
+
+/// Attributwert innerhalb eines einzelnen Tags.
+fn tag_attr(tag: &str, attr: &str) -> Option<String> {
+    for quote in ['"', '\''] {
+        let needle = format!("{attr}={quote}");
+        if let Some(p) = tag.find(&needle) {
+            let vs = p + needle.len();
+            if let Some(ve) = tag[vs..].find(quote) {
+                return Some(tag[vs..vs + ve].to_string());
+            }
+        }
+    }
+    None
+}
+
+#[cfg(test)]
+mod bild_tests {
+    use super::*;
+
+    #[test]
+    fn og_image_finden() {
+        let html = r#"<html><head>
+            <meta charset="utf-8">
+            <meta property="og:title" content="Eine Meldung">
+            <meta property="og:image" content="https://example.org/artikel.jpg">
+        </head><body>…</body></html>"#;
+        assert_eq!(
+            extract_article_image(html).as_deref(),
+            Some("https://example.org/artikel.jpg")
+        );
+    }
+
+    #[test]
+    fn twitter_image_als_ausweichweg() {
+        let html = r#"<head><meta name="twitter:image" content="https://example.org/t.png"></head>"#;
+        assert_eq!(
+            extract_article_image(html).as_deref(),
+            Some("https://example.org/t.png")
+        );
+    }
+
+    #[test]
+    fn entities_werden_aufgeloest() {
+        let html = r#"<head><meta property="og:image" content="https://example.org/a.jpg?w=800&amp;h=600"></head>"#;
+        assert_eq!(
+            extract_article_image(html).as_deref(),
+            Some("https://example.org/a.jpg?w=800&h=600")
+        );
+    }
+
+    #[test]
+    fn ohne_bild_kein_treffer() {
+        assert!(extract_article_image("<html><head></head><body>nichts</body></html>").is_none());
+        assert!(extract_article_image("").is_none());
+        // Relative Pfade werden verworfen (nicht ladbar ohne Basis).
+        let html = r#"<head><meta property="og:image" content="/bilder/x.jpg"></head>"#;
+        assert!(extract_article_image(html).is_none());
+    }
+}

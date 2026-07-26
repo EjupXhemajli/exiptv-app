@@ -73,6 +73,7 @@ pub fn run() {
             commands::cache_image,
             commands::quit_app,
             commands::fetch_news,
+            commands::fetch_article_image,
             // Playback (Phase 4)
             playback_commands::ensure_playback_ready,
             playback_commands::playback_load,

@@ -86,6 +86,7 @@ interface Backend {
   cacheImage(url: string): Promise<string>;
   quitApp(): Promise<void>;
   fetchNews(perFeed?: number): Promise<NewsItem[]>;
+  fetchArticleImage(url: string): Promise<string | null>;
 }
 
 function tauriBackend(): Backend {
@@ -183,6 +184,7 @@ function tauriBackend(): Backend {
     },
     quitApp: () => inv("quit_app"),
     fetchNews: (perFeed) => inv("fetch_news", { perFeed }),
+    fetchArticleImage: (url) => inv("fetch_article_image", { url }),
   };
 }
 
@@ -355,6 +357,7 @@ function mockBackend(): Backend {
     cacheImage: async (url) => url,
     quitApp: async () => { window.close(); },
     fetchNews: async () => [],
+    fetchArticleImage: async () => null,
   };
 }
 

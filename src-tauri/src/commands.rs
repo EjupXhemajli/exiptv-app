@@ -640,32 +640,49 @@ pub async fn quit_app(app: tauri::AppHandle) -> CmdResult<()> {
 // Nachrichten für die Startseite (öffentliche RSS-Feeds)
 // ------------------------------------------------------------------
 
-/// Öffentliche Nachrichten-Feeds. Bewusst öffentlich zugängliche Quellen
-/// ohne Zugangsdaten; die Auswahl lässt sich später in den Einstellungen
-/// erweitern.
+/// Öffentliche Nachrichten-Feeds (ARD/tagesschau und Sportschau).
+/// Schwerpunkt Sport liegt auf Fußball: Bundesliga, Nationalmannschaft,
+/// Champions League und DFB-Pokal.
 const NEWS_FEEDS: &[(&str, &str)] = &[
-    ("Politik", "https://www.tagesschau.de/index~rss2.xml"),
+    // Politik / allgemeine Nachrichten
+    ("Politik", "https://www.tagesschau.de/infoservices/alle-meldungen-100~rss2.xml"),
+    ("Politik", "https://www.tagesschau.de/inland/index~rss2.xml"),
+    // Sport – Schwerpunkt Fußball
+    ("Fußball", "https://www.sportschau.de/fussball/bundesliga/index~rss2.xml"),
+    ("Fußball", "https://www.sportschau.de/fussball/nationalmannschaft/index~rss2.xml"),
+    ("Fußball", "https://www.sportschau.de/fussball/champions-league/index~rss2.xml"),
+    ("Fußball", "https://www.sportschau.de/fussball/index~rss2.xml"),
     ("Sport", "https://www.sportschau.de/index~rss2.xml"),
 ];
 
-/// Holt aktuelle Nachrichten für die Slideshow auf der Startseite.
-/// Fehlerhafte oder nicht erreichbare Quellen werden übersprungen, damit
-/// die Startseite immer etwas anzeigen kann.
 #[tauri::command]
 pub async fn fetch_news(
     state: State<'_, AppState>,
     per_feed: Option<usize>,
 ) -> CmdResult<Vec<exiptv_core::parser::rss::NewsItem>> {
-    let per_feed = per_feed.unwrap_or(6).clamp(1, 20);
-    let mut all: Vec<exiptv_core::parser::rss::NewsItem> = Vec::new();
+    use exiptv_core::parser::rss;
+
+    let per_feed = per_feed.unwrap_or(4).clamp(1, 20);
+    let mut politik: Vec<rss::NewsItem> = Vec::new();
+    let mut sport: Vec<rss::NewsItem> = Vec::new();
 
     for &(kategorie, url) in NEWS_FEEDS {
+        // Genug gesammelt? Dann weitere Quellen überspringen.
+        if politik.len() >= 12 && sport.len() >= 12 {
+            break;
+        }
         match crate::http::get_with_retry(&state.http, url, None, 1).await {
             Ok(bytes) => {
                 let xml = String::from_utf8_lossy(&bytes);
-                let items = exiptv_core::parser::rss::parse_feed(&xml, kategorie, per_feed);
+                let items = rss::parse_feed(&xml, kategorie, per_feed);
                 tracing::info!(quelle = kategorie, anzahl = items.len(), "Nachrichten geladen");
-                all.extend(items);
+                for item in items {
+                    // Doppelte Meldungen (gleiche Überschrift) überspringen.
+                    let ziel = if kategorie == "Politik" { &mut politik } else { &mut sport };
+                    if !ziel.iter().any(|n| n.title == item.title) {
+                        ziel.push(item);
+                    }
+                }
             }
             Err(e) => {
                 tracing::warn!(quelle = kategorie, fehler = %e, "Nachrichtenquelle nicht erreichbar");
@@ -673,15 +690,14 @@ pub async fn fetch_news(
         }
     }
 
-    if all.is_empty() {
+    if politik.is_empty() && sport.is_empty() {
         return Err("Es konnten keine Nachrichten geladen werden. \
                     Bitte prüfe deine Internetverbindung."
             .into());
     }
 
-    // Politik und Sport abwechselnd mischen, damit die Slideshow abwechslungsreich ist.
-    let (politik, sport): (Vec<_>, Vec<_>) = all.into_iter().partition(|n| n.source == "Politik");
-    let mut gemischt = Vec::with_capacity(politik.len() + sport.len());
+    // Politik und Sport abwechselnd mischen.
+    let mut gemischt: Vec<rss::NewsItem> = Vec::with_capacity(politik.len() + sport.len());
     let mut p = politik.into_iter();
     let mut s = sport.into_iter();
     loop {
@@ -691,5 +707,36 @@ pub async fn fetch_news(
         if let Some(x) = a { gemischt.push(x); }
         if let Some(y) = b { gemischt.push(y); }
     }
+    gemischt.truncate(16);
+
+    let mit_bild = gemischt.iter().filter(|n| n.image_url.is_some()).count();
+    tracing::info!(gesamt = gemischt.len(), mit_bild, "Nachrichten geladen");
     Ok(gemischt)
+}
+
+/// Lädt das Vorschaubild einer einzelnen Artikelseite nach.
+///
+/// Wird von der Oberfläche für Meldungen ohne Bild aufgerufen – so
+/// erscheint die Slideshow sofort und die Bilder kommen nach und nach dazu,
+/// statt dass die Startseite auf alle Abrufe wartet.
+#[tauri::command]
+pub async fn fetch_article_image(
+    state: State<'_, AppState>,
+    url: String,
+) -> CmdResult<Option<String>> {
+    if url.is_empty() || !url.starts_with("http") {
+        return Ok(None);
+    }
+    let seite = tokio::time::timeout(
+        std::time::Duration::from_secs(8),
+        crate::http::get_with_retry(&state.http, &url, None, 0),
+    )
+    .await;
+    match seite {
+        Ok(Ok(bytes)) => {
+            let html = String::from_utf8_lossy(&bytes);
+            Ok(exiptv_core::parser::rss::extract_article_image(&html))
+        }
+        _ => Ok(None),
+    }
 }

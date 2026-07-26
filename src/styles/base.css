@@ -454,3 +454,4 @@ input[type="color"] {
 }
 .news-dot:hover { background: rgba(148,163,216,0.55); }
 .news-dot.active { background: var(--violet); transform: scale(1.3); }
+.news-tag.fussball { background: rgba(16,185,129,0.88); color: #04140e; }
