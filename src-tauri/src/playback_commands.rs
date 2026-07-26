@@ -110,6 +110,33 @@ pub async fn ensure_playback_ready(
         let get = |k: &str| db.get_setting(k).ok().flatten();
         let flag = |k: &str, default: bool| get(k).map(|v| v == "1" || v == "true").unwrap_or(default);
 
+        // Grundpuffer aus dem Puffer-Modus.
+        let mut buffer_seconds = match get("pref.bufferMode").as_deref() {
+            Some("klein") => 6,
+            Some("gross") => 40,
+            _ => 20,
+        };
+        // Feinpuffer überschreibt den Wert, falls gesetzt (1–30 s).
+        if let Some(fine) = get("pref.fineBufferSeconds").and_then(|v| v.parse::<u32>().ok()) {
+            if fine > 0 {
+                buffer_seconds = fine;
+            }
+        }
+        let audio_delay_ms = get("pref.audioDelayMs")
+            .and_then(|v| v.parse::<i64>().ok())
+            .unwrap_or(0);
+
+        playback_controller::PlaybackConfig {
+            buffer_seconds,
+            quality: get("pref.quality").unwrap_or_else(|| "auto".into()),
+            hardware_decoding: flag("pref.hardwareDecoding", true),
+            deinterlace: flag("pref.deinterlace", false),
+            reconnect: flag("pref.reconnect", true),
+            preferred_audio_lang: get("pref.preferredAudioLang").unwrap_or_default(),
+            preferred_subtitle_lang: get("pref.preferredSubtitleLang").unwrap_or_default(),
+            volume_normalization: flag("pref.volumeNormalization", false),
+            audio_delay_ms,
+        }
     };
 
     // Playback-Thread starten.

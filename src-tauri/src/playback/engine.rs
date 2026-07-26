@@ -108,7 +108,7 @@ impl MpvEngine {
             // Ton-Versatz (Sekunden; positiv = Ton später).
             if cfg.audio_delay_ms != 0 {
                 let secs = cfg.audio_delay_ms as f64 / 1000.0;
-                let _ = init.set_property("audio-delay", &secs.to_string());
+                let _ = init.set_property("audio-delay", secs.to_string());
             }
             // Terminalausgabe unterdrücken.
             let _ = init.set_property("terminal", "no");
